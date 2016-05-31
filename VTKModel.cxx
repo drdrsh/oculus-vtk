@@ -1,4 +1,3 @@
-#include "VTKModel.h"
 #include <thread>
 #include <fstream>
 #include <algorithm>
@@ -51,10 +50,11 @@
 #include <vtkFillHolesFilter.h>
 
 
+#include "VTKModel.h"
+
 #include "definitions.h"
 #include <glm\glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
-
 vtkSmartPointer<vtkPolyData> VTKModel::getSpherePolyData() {
 
 	VTK_NEW(voxelModeller, vtkVoxelModeller);
@@ -107,7 +107,7 @@ vtkSmartPointer<vtkPolyData> VTKModel::getImagePolyData(std::string filename) {
 	surface->SetInputData(volume);
 
 	surface->ComputeNormalsOn();
-	surface->SetValue(0, .5);
+	surface->SetValue(0, 1);
 
 	surface->Update();
 
@@ -121,24 +121,25 @@ vtkSmartPointer<vtkPolyData> VTKModel::getSquarePolyData() {
 	VTK_NEW(polygons, vtkCellArray);
 	VTK_NEW(polygonPolyData, vtkPolyData);
 	
-	// Setup four points
-	points->InsertNextPoint(0.0, 0.0, 0.0);
-	points->InsertNextPoint(1.0, 1.0, 0.0);
-	points->InsertNextPoint(0.0, 1.0, 0.0);
+	// Setup three points
+	points->InsertNextPoint( 0.0,  0.5, 0.0);
+	points->InsertNextPoint( 0.5, -0.5, 0.0);
+	points->InsertNextPoint(-0.5, -0.5, 0.0);
 
-	// Create the polygon
-	polygon->GetPointIds()->SetNumberOfIds(3); //make a quad
+	// Create the triangle
+	polygon->GetPointIds()->SetNumberOfIds(3); //make a triangle
 	polygon->GetPointIds()->SetId(0, 0);
 	polygon->GetPointIds()->SetId(1, 1);
 	polygon->GetPointIds()->SetId(2, 2);
 
-	// Add the polygon to a list of polygons
+	// Add the triangle to a list of polygons
 	polygons->InsertNextCell(polygon);
 
 	// Create a PolyData
 	polygonPolyData->SetPoints(points);
 	polygonPolyData->SetPolys(polygons);
 
+	/*
 	vtkSmartPointer<vtkFloatArray> colors = vtkFloatArray::New();
 	colors->SetName("Colors");
 	colors->SetNumberOfComponents(4);
@@ -146,13 +147,13 @@ vtkSmartPointer<vtkPolyData> VTKModel::getSquarePolyData() {
 	colors->SetTuple4(0, 1.0, 0.0, 0.0, 1.0);
 	colors->SetTuple4(1, 0.0, 1.0, 0.0, 1.0);
 	colors->SetTuple4(2, 0.0, 0.0, 1.0, 1.0);
-
 	polygonPolyData->GetPointData()->AddArray(colors);
+	*/
 
 	return polygonPolyData;
 }
 
-VTKModel::VTKModel(std::string filename) {
+VTKModel::VTKModel(std::string filename, std::string program) {
 
 	VTK_NEW(volume, vtkImageData);
 	VTK_NEW(reader, vtkNIFTIImageReader);
@@ -160,32 +161,29 @@ VTKModel::VTKModel(std::string filename) {
 	VTK_NEW(smoother, vtkSmoothPolyDataFilter);
 	VTK_NEW(decimate, vtkDecimatePro);
 
-	m_triangles = getSquarePolyData();
-	//m_triangles = getImagePolyData(filename);
+	m_programName = program;
+	//m_triangles = getSquarePolyData();
+	m_triangles = getImagePolyData(filename);
 	//m_triangles = getSpherePolyData();
 	m_isInitialized = false;
+	m_isThreadRunning = false;
 }
 
 
 void VTKModel::allocateBuffers() {
-	//FIXME: Memory leak
-	/*
-	if (m_vertices && m_indices) {
-	m_vertices->~VertexBuffer();
-	m_indices->~IndexBuffer();
+	if (m_glBuffer) {
+		m_glBuffer->release();
+		delete m_glBuffer;
+		m_glBuffer = nullptr;
 	}
-	*/
-
-	m_vBuffer = new VTKVertexBuffer(m_triangles);
-	m_iBuffer = new VTKIndexBuffer(m_triangles);
-
+	m_glBuffer = new VTKGLBuffer(m_triangles, m_program);
 }
 
 void VTKModel::init() {
 
 	m_isInitialized = true;
 	if (!m_isThreadRunning) {
-		//m_watcherThread = std::thread(VTKModel::watchFileForNewProgram);
+		m_watcherThread = std::thread(&VTKModel::watchFileForNewProgram, this);
 		m_isThreadRunning = true;
 	}
 
@@ -197,6 +195,34 @@ void VTKModel::init() {
 
 	allocateBuffers();
 
+}
+void VTKModel::watchFileForNewProgram() {
+
+#ifdef _WIN32
+	while (true) {
+		DWORD dwWaitStatus;
+		HANDLE notifyHandles[2];
+		/*
+		notifyHandles[0] = FindFirstChangeNotification(
+		PASSModel::getAltVRPath("shaders\\").data(),
+		FALSE,
+		FILE_NOTIFY_CHANGE_LAST_WRITE\
+		);
+		*/
+		std::string pathToWatch = VTKModel::getResourcePath("shaders\\");
+
+
+		notifyHandles[0] = FindFirstChangeNotification(pathToWatch.c_str(), FALSE, FILE_NOTIFY_CHANGE_LAST_WRITE);
+
+		dwWaitStatus = WaitForMultipleObjects(1, notifyHandles, FALSE, INFINITE);
+
+		if (dwWaitStatus == WAIT_OBJECT_0) {
+			Sleep(100);
+			readProgram();
+		}
+
+	}
+#endif
 }
 
 
@@ -236,8 +262,6 @@ void VTKModel::render(glm::mat4 obj, glm::mat4 proj, glm::mat4 view) {
 	glUniformMatrix4fv(ufLoc("matObject"), 1, GL_FALSE, glm::value_ptr(obj));
 	glUniformMatrix4fv(ufLoc("matNormal"), 1, GL_FALSE, glm::value_ptr(norm));
 
-	m_iBuffer->bind();
-	m_vBuffer->bind(m_program);
 
 	/*
 	glUniform4fv(glGetUniformLocation(program, "FrontMaterial.ambient"), 1, m_material.front.fAmbient);
@@ -253,10 +277,7 @@ void VTKModel::render(glm::mat4 obj, glm::mat4 proj, glm::mat4 view) {
 	glUniform1f(glGetUniformLocation(program, "BackMaterial.shininess"), m_material.back.fShininess);
 	*/
 
-	m_iBuffer->draw(GL_TRIANGLES);
-
-	m_vBuffer->unbind(m_program);
-	m_iBuffer->unbind();
+	m_glBuffer->render();
 
 	glUseProgram(0);
 	//glDisable(GL_MULTISAMPLE);
@@ -268,7 +289,7 @@ void VTKModel::render(glm::mat4 obj, glm::mat4 proj, glm::mat4 view) {
 std::string VTKModel::getResourcePath(std::string p) {
 
 #ifdef _DEBUG
-	std::string vrPath = "C:\\OGLVTK\\";
+	std::string vrPath = "F:\\MAbdelraouf\\Projects\\CXX\\oculus-vtk\\src\\";
 #else
 	if (vrPath.length() == 0) {
 		TCHAR buff[MAX_PATH];
@@ -292,12 +313,16 @@ VTKModel::~VTKModel() {
 GLuint VTKModel::createShader(GLenum type, const GLchar * src)
 {
 
+
 	std::string output_text;
 
 	//Correction for the line number in the error message
 	int commonFileLines = 0;
 	std::string line;
-	std::ifstream myfile(VTKModel::getResourcePath("shaders\\common.glsl"));
+
+	std::ostringstream common_fn;
+	common_fn << "shaders\\" << m_programName << "_common.glsl";
+	std::ifstream myfile(VTKModel::getResourcePath(common_fn.str()));
 	while (std::getline(myfile, line)) {
 		commonFileLines++;
 	}
@@ -338,7 +363,9 @@ GLuint VTKModel::createShader(GLenum type, const GLchar * src)
 		}
 		if (msg[0]) {
 			std::ofstream log_file;
-			log_file.open(VTKModel::getResourcePath("log\\error.txt"), std::ofstream::out | std::ofstream::app);
+			std::ostringstream log_fn;
+			log_fn << "log\\" << m_programName << "_error.txt";
+			log_file.open(VTKModel::getResourcePath(log_fn.str()), std::ofstream::out | std::ofstream::app);
 			std::string m = msg;
 			std::regex re("\\((\\d+)\\) :");
 			std::sregex_token_iterator
@@ -359,7 +386,10 @@ GLuint VTKModel::createShader(GLenum type, const GLchar * src)
 void VTKModel::reloadProgram() {
 
 	std::ofstream log_file;
-	log_file.open(VTKModel::getResourcePath("log\\error.txt"), std::ofstream::trunc);
+
+	std::ostringstream log_fn;
+	log_fn << "log\\" << m_programName << "_error.txt";
+	log_file.open(VTKModel::getResourcePath(log_fn.str()), std::ofstream::trunc);
 	log_file.close();
 
 	GLuint vertexShader = createShader(GL_VERTEX_SHADER, newVertexProgram.data());
@@ -406,10 +436,13 @@ void VTKModel::reloadProgram() {
 	GLERR;
 	if (!r) {
 		GLchar msg[1024];
+		std::ostringstream log_fn;
+
 		glGetProgramInfoLog(newProgram, sizeof(msg), 0, msg);
 		GLERR;
-		std::ofstream log_file;
-		log_file.open(VTKModel::getResourcePath("log\\error.txt"), std::ofstream::out | std::ofstream::app);
+
+		log_fn << "log\\" << m_programName << "_error.txt";
+		log_file.open(VTKModel::getResourcePath(log_fn.str()), std::ofstream::out | std::ofstream::app);
 		log_file << "Linking program failed: " << msg;
 		log_file << newVertexProgram;
 		log_file << newFragmentProgram;
@@ -430,23 +463,35 @@ void VTKModel::reloadProgram() {
 
 void VTKModel::readProgram() {
 
-	std::ifstream common_file(VTKModel::getResourcePath("shaders\\common.glsl"));
+	std::ostringstream common_fn;
+	common_fn << "shaders\\" << m_programName << "_common.glsl";
+	std::ifstream common_file(VTKModel::getResourcePath(common_fn.str()));
 	std::string cp = std::string(
 		std::istreambuf_iterator<char>(common_file),
 		std::istreambuf_iterator<char>()
-		);
+	);
 
-	std::ifstream vertex_file(VTKModel::getResourcePath("shaders\\vertex.glsl"));
+	std::ostringstream vertex_fn;
+	vertex_fn << "shaders\\" << m_programName << "_vertex.glsl";
+	std::ifstream vertex_file(VTKModel::getResourcePath(vertex_fn.str()));
 	std::string vp = std::string(
 		std::istreambuf_iterator<char>(vertex_file),
 		std::istreambuf_iterator<char>()
 	);
+	if (vp.length() == 0) {
+		throw std::exception((std::string("Empty Vertex shader detected, exiting - ") + vertex_fn.str()).c_str());
+	}
 
-	std::ifstream fragment_file(VTKModel::getResourcePath("shaders\\fragment.glsl"));
+	std::ostringstream fragment_fn;
+	fragment_fn << "shaders\\" << m_programName << "_fragment.glsl";
+	std::ifstream fragment_file(VTKModel::getResourcePath(fragment_fn.str()));
 	std::string fp = std::string(
 		std::istreambuf_iterator<char>(fragment_file),
 		std::istreambuf_iterator<char>()
 	);
+	if (fp.length() == 0) {
+		throw std::exception((std::string("Empty Fragment shader detected, exiting - ") + fragment_fn.str()).c_str());
+	}
 
 	newVertexProgram = cp + vp;
 	newFragmentProgram = cp + fp;
@@ -460,20 +505,14 @@ void VTKModel::release() {
 		m_triangles->Delete();
 	}
 
-
-	if (m_vBuffer) {
-		delete m_vBuffer;
-	}
-
-	if (m_iBuffer) {
-		delete m_iBuffer;
-	}
-
 	if (m_program) {
 		glDeleteProgram(m_program);
 		m_program = 0;
 	}
 
-	//FIXME: Release resources
+	if (m_glBuffer) {
+		m_glBuffer->release();
+		delete m_glBuffer;
+	}
 
 }

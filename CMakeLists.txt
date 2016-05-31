@@ -2,12 +2,24 @@ cmake_minimum_required(VERSION 3.0.2)
 
 project(LungSurfacesVisualization)
 
+if(WIN32)
+else()
+	message( FATAL_ERROR "This script supports only windows")
+endif()
+
+
 find_package(VTK REQUIRED)
+
 include(${VTK_USE_FILE})
 
-set(GLFW_SOURCE_DIR "${CMAKE_SOURCE_DIR}/external/glfw")
-set(GLM_SOURCE_DIR "${CMAKE_SOURCE_DIR}/external/glm")
-set(GLEW_SOURCE_DIR "${CMAKE_SOURCE_DIR}/external/glew/glew-1.13.0")
+include("FindOculusSDK.cmake")
+
+set(EXTERNAL_DIR "${CMAKE_SOURCE_DIR}/external")
+
+
+set(GLFW_SOURCE_DIR "${EXTERNAL_DIR}/glfw")
+set(GLM_SOURCE_DIR  "${EXTERNAL_DIR}/glm")
+set(GLEW_SOURCE_DIR "${EXTERNAL_DIR}/glew")
 
 if(EXISTS "${GLFW_SOURCE_DIR}/src/CMakeLists.txt")
 else()
@@ -25,7 +37,6 @@ endif()
 if(EXISTS "${GLEW_SOURCE_DIR}/build/cmake/CMakeLists.txt")
 else()
     file(REMOVE_RECURSE ${GLEW_SOURCE_DIR})
-    file(MAKE_DIRECTORY ${GLEW_SOURCE_DIR})
     message(STATUS "Downloading glew")
     file(DOWNLOAD "https://sourceforge.net/projects/glew/files/glew/1.13.0/glew-1.13.0.tgz/download"
         "${CMAKE_SOURCE_DIR}/glew.tgz"
@@ -34,15 +45,17 @@ else()
     )
     execute_process(
         COMMAND ${CMAKE_COMMAND} -E tar xfz "${CMAKE_SOURCE_DIR}/glew.tgz"
-            WORKING_DIRECTORY  ${GLEW_SOURCE_DIR}
+            WORKING_DIRECTORY  ${EXTERNAL_DIR}
             RESULT_VARIABLE Result
     )
     if(NOT Result EQUAL "0")
         message(FATAL_ERROR "Failed extracting glew")
     endif()
 
-    set(GLEW_SOURCE_DIR "${GLEW_SOURCE_DIR}/glew-1.13.0")
+	file(RENAME "${EXTERNAL_DIR}/glew-1.13.0" "${GLEW_SOURCE_DIR}")
+	
     file(REMOVE "${CMAKE_SOURCE_DIR}/glew.tgz")
+	
 endif()
 
 
@@ -51,6 +64,14 @@ FIND_PACKAGE(OpenGL REQUIRED)
 if(NOT OPENGL_FOUND)
     message(ERROR " OPENGL not found!")
 endif(NOT OPENGL_FOUND)
+
+
+# Check that Oculus SDK match the desired version
+IF(NOT OCULUS_SDK_VERSION VERSION_EQUAL 0.8.0 AND 
+NOT OCULUS_SDK_VERSION VERSION_GREATER 0.8.0)
+	MESSAGE(FATAL_ERROR "ERROR: This library required SDK version 1.3.0 or later!")
+ENDIF()
+
 
 
 # Building only the GLFW lib
@@ -63,11 +84,14 @@ set(GLFW_INSTALL OFF CACHE BOOL "")
 
 add_subdirectory(${GLFW_SOURCE_DIR} ${GLEW_SOURCE_DIR})
 
+
 include_directories(
 	${GLFW_SOURCE_DIR}/include
     ${GLFW_SOURCE_DIR}/deps
     ${GLM_SOURCE_DIR}
     ${GLEW_SOURCE_DIR}/include
+    ${OCULUS_SDK_INCLUDE_DIRS}
+	${OCULUS_SDK_ROOT_DIR}/LibOVRKernel/Src
 	includes
 )
 
@@ -83,11 +107,15 @@ add_definitions( -DGLEW_STATIC)
 set(SOURCES 
         main.cxx
         VTKModel.cxx
+		VTKGLBuffer.cxx
+		OVRHelper.cxx
         includes/VTKModel.h
+        includes/OVRHelper.h
+        includes/VTKGLBuffer.h
         includes/definitions.h
-        shaders/common.glsl
-        shaders/vertex.glsl
-        shaders/fragment.glsl
+        shaders/simple_common.glsl
+        shaders/simple_vertex.glsl
+        shaders/simple_fragment.glsl
 )
 
 
@@ -98,6 +126,6 @@ target_link_libraries(
         glfw 
         ${GLFW_LIBRARIES} 
         glew
+		${OCULUS_SDK_LIBRARIES}
         ${VTK_LIBRARIES}
 )
-

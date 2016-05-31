@@ -1,4 +1,3 @@
-#include "definitions.h"
 #include <GL/glew.h>
 #include <glm/vec3.hpp>
 
@@ -29,14 +28,17 @@
 
 #include "definitions.h"
 
-#define OUTPUT_FN   "C:\\Users\\Mostafa\\Desktop\\Spring_2016\\MIATT\\HW_Build\\Project\\Slices\\left-volume.nii"
+
+//#define OUTPUT_FN "F:\\MAbdelraouf\\Projects\\CXX\\oculus - vtk\\src\\data\\H - 554_20041005_159571722609202.Lung.mask.img.gz"
+#define OUTPUT_FN "C:\\data\\left_mask.nii.gz"
+
 
 #include <stdio.h>
 #include <stdlib.h>
 
 
 #include <GLFW/glfw3.h>
-#include <VTKModel.h>
+#include "VTKModel.h"
 #include <glm/gtx/transform2.hpp>
 #include <glm/gtx/projection.hpp>
 
@@ -52,11 +54,11 @@ void checkForOpenglErrors(int line, const char * fn) {
 		std::string error;
 
 		switch (err) {
-		case GL_INVALID_OPERATION:      error = "INVALID_OPERATION";      break;
-		case GL_INVALID_ENUM:           error = "INVALID_ENUM";           break;
-		case GL_INVALID_VALUE:          error = "INVALID_VALUE";          break;
-		case GL_OUT_OF_MEMORY:          error = "OUT_OF_MEMORY";          break;
-		case GL_INVALID_FRAMEBUFFER_OPERATION:  error = "INVALID_FRAMEBUFFER_OPERATION";  break;
+		case GL_INVALID_OPERATION:				error = "INVALID_OPERATION";			 break;
+		case GL_INVALID_ENUM:				    error = "INVALID_ENUM";					 break;
+		case GL_INVALID_VALUE:					error = "INVALID_VALUE";				 break;
+		case GL_OUT_OF_MEMORY:					error = "OUT_OF_MEMORY";				 break;
+		case GL_INVALID_FRAMEBUFFER_OPERATION:  error = "INVALID_FRAMEBUFFER_OPERATION"; break;
 		}
 
 		std::cerr << fn << ":" << line << "  GL_" << error.c_str() << std::endl;
@@ -77,11 +79,11 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action, 
 static void render(GLFWwindow *window) {
 	
 	glm::mat4 matProjection = glm::mat4(1.0);  //loadIdentity
-	matProjection *= glm::perspective(90.0f, 640.0f/480.0f, -500.0f, 500.0f);
+	matProjection *= glm::perspective(120.0f, 640.0f/480.0f, -500.0f, 500.0f);
 
 	glm::mat4 matView = glm::mat4(1.0);  //loadIdentity
 	matView *= glm::lookAt(
-		glm::vec3(0.0f, 0.0f,  0.0f), //Eye
+		glm::vec3(0.0f, 0.0f,  10.0f), //Eye
 		glm::vec3(0.0f, 0.0f, -1.0f),//Point
 		glm::vec3(0.0f, 1.0f,  0.0f)  //Up
 	);
@@ -91,17 +93,20 @@ static void render(GLFWwindow *window) {
 	glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	GLERR;
-	//glLoadIdentity();
-	//GLERR;
+	
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LESS);
+	GLERR;
 
 	mainModel->render(matObj, matProjection, matView);
-
 	GLERR;
 }
 
 
 void init() {
-	mainModel = new VTKModel(std::string("C:\\Users\\Mostafa\\Desktop\\Spring_2016\\MIATT\\Data\\project\\right_mask.nii.gz"));
+
+	mainModel = new VTKModel(std::string(OUTPUT_FN), std::string("simple"));
+
 }
 
 int main(void) {
@@ -116,7 +121,6 @@ int main(void) {
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-	//glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 
 	window = glfwCreateWindow(640, 480, "OpenGL Boilerplate", NULL, NULL);

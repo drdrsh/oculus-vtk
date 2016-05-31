@@ -5,10 +5,12 @@
 #include <GL/GL.h>
 #include <glm/mat4x4.hpp>
 
+
 #include <vtkPolyData.h>
 #include <vtkCellArray.h>
 #include <vtkPointData.h>
 #include <vtkSmartPointer.h>
+#include "VTKGLBuffer.h"
 #include "definitions.h"
 
 #include <thread>
@@ -18,7 +20,7 @@ class VTKModel {
 public:
 
 
-	VTKModel(std::string filename);
+	VTKModel(std::string filename, std::string program);
 
 	void render(glm::mat4 o, glm::mat4 proj, glm::mat4 view);
 
@@ -32,6 +34,9 @@ private:
 
 	int		 m_numIndices;
 	GLuint   m_program = -1;
+	
+	std::string m_programName;
+	
 	glm::mat4 m_matObj;
 	glm::mat4 m_matProj;
 	glm::mat4 m_matView;
@@ -46,8 +51,8 @@ private:
 	void readProgram();
 	void init();
 
-	VTKVertexBuffer* m_vBuffer = nullptr;
-	VTKIndexBuffer* m_iBuffer = nullptr;
+	VTKGLBuffer* m_glBuffer = nullptr;
+	
 	std::string newFragmentProgram;
 	std::string newVertexProgram;
 
@@ -60,6 +65,10 @@ private:
 
 	vtkSmartPointer<vtkPolyData> m_triangles;
 
+
+	std::thread m_watcherThread;
+
+	void watchFileForNewProgram();
 
 	vtkSmartPointer<vtkPolyData> VTKModel::getSquarePolyData();
 	vtkSmartPointer<vtkPolyData> VTKModel::getSpherePolyData();
