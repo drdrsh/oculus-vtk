@@ -22,6 +22,9 @@ public:
 
 	VTKModel(std::string filename, std::string program);
 
+	glm::vec3 getCenter();
+	double getExtentAlongAxis(int axis);
+
 	void render(glm::mat4 o, glm::mat4 proj, glm::mat4 view);
 
 	void release();
@@ -37,9 +40,9 @@ private:
 	
 	std::string m_programName;
 	
-	glm::mat4 m_matObj;
-	glm::mat4 m_matProj;
+	glm::mat4 m_matModel;
 	glm::mat4 m_matView;
+	glm::mat4 m_matProj;
 	glm::mat4 m_matNorm;
 
 	bool m_isInitialized;

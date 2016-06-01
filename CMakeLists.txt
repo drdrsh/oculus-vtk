@@ -1,12 +1,6 @@
 cmake_minimum_required(VERSION 3.0.2)
 
-project(LungSurfacesVisualization)
-
-if(WIN32)
-else()
-	message( FATAL_ERROR "This script supports only windows")
-endif()
-
+project(OculusVTKBoilerplate)
 
 find_package(VTK REQUIRED)
 
@@ -119,10 +113,10 @@ set(SOURCES
 )
 
 
-add_executable(LungSurfacesVisualization ${SOURCES})
+add_executable(OculusVTKBoilerplate ${SOURCES})
 
 target_link_libraries(
-    LungSurfacesVisualization 
+    OculusVTKBoilerplate 
         glfw 
         ${GLFW_LIBRARIES} 
         glew

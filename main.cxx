@@ -26,8 +26,8 @@
 #include <vtkDecimatePro.h>
 #include <vtkFillHolesFilter.h>
 
+#include "OVRHelper.h"
 #include "definitions.h"
-
 
 //#define OUTPUT_FN "F:\\MAbdelraouf\\Projects\\CXX\\oculus - vtk\\src\\data\\H - 554_20041005_159571722609202.Lung.mask.img.gz"
 #define OUTPUT_FN "C:\\data\\left_mask.nii.gz"
@@ -41,10 +41,9 @@
 #include "VTKModel.h"
 #include <glm/gtx/transform2.hpp>
 #include <glm/gtx/projection.hpp>
+#include <glm/mat4x4.hpp>
 
 VTKModel *mainModel;
-
-#define GLSL(src) #src
 
 void checkForOpenglErrors(int line, const char * fn) {
 
@@ -76,36 +75,39 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action, 
 		glfwSetWindowShouldClose(window, GL_TRUE);
 }
 
+void renderOVRScene(glm::mat4 projection, glm::mat4 view) {
+	glm::mat4 model = glm::scale(glm::vec3(1.0f));
+	mainModel->render(model, projection, view);
+}
+
 static void render(GLFWwindow *window) {
 	
-	glm::mat4 matProjection = glm::mat4(1.0);  //loadIdentity
-	matProjection *= glm::perspective(120.0f, 640.0f/480.0f, -500.0f, 500.0f);
-
-	glm::mat4 matView = glm::mat4(1.0);  //loadIdentity
-	matView *= glm::lookAt(
-		glm::vec3(0.0f, 0.0f,  10.0f), //Eye
-		glm::vec3(0.0f, 0.0f, -1.0f),//Point
-		glm::vec3(0.0f, 1.0f,  0.0f)  //Up
-	);
-
-	glm::mat4 matObj = glm::mat4(1.0);
-
 	glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	GLERR;
-	
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
-	GLERR;
 
-	mainModel->render(matObj, matProjection, matView);
-	GLERR;
+	OVRHelper::getInstance()->render(renderOVRScene);
 }
 
 
-void init() {
+void init(GLFWwindow *window) {
+
+	OVRHelper::getInstance()->init();
+	glm::ivec2 windowSize = OVRHelper::getInstance()->getViewportSize();
+	glfwSetWindowSize(window, windowSize.x, windowSize.y);
 
 	mainModel = new VTKModel(std::string(OUTPUT_FN), std::string("simple"));
+
+	glm::vec3 center = mainModel->getCenter();
+	double depth = mainModel->getExtentAlongAxis(2);
+
+	glm::vec3 camera = center;
+	camera.z -= depth - 50.0f;
+
+	OVRHelper::getInstance()->setLookAt(camera, center);
+
+
 
 }
 
@@ -123,7 +125,7 @@ int main(void) {
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 
-	window = glfwCreateWindow(640, 480, "OpenGL Boilerplate", NULL, NULL);
+	window = glfwCreateWindow(100, 100, "OpenGL Boilerplate", NULL, NULL);
 	if (!window) {
 		glfwTerminate();
 		exit(EXIT_FAILURE);
@@ -137,7 +139,7 @@ int main(void) {
 	glewExperimental = GL_TRUE;
 	glewInit();
 
-	init();
+	init(window);
 	GLERR;
 	while (!glfwWindowShouldClose(window)) {
 		render(window);

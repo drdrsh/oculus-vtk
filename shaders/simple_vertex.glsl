@@ -10,10 +10,7 @@ void main() {
 	color = vecColors;
 	
     
-	clippedVertex[0] += 128.0;
-	clippedVertex[1] += 128.0;
-	clippedVertex[2] += 950.0;
-	vec4 finalVertex = clippedVertex;
+	vec4 finalVertex = matMVP * clippedVertex;
 		
 	gl_Position = finalVertex;
 }

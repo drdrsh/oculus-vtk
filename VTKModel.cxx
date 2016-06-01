@@ -55,6 +55,7 @@
 #include "definitions.h"
 #include <glm\glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
+
 vtkSmartPointer<vtkPolyData> VTKModel::getSpherePolyData() {
 
 	VTK_NEW(voxelModeller, vtkVoxelModeller);
@@ -202,15 +203,8 @@ void VTKModel::watchFileForNewProgram() {
 	while (true) {
 		DWORD dwWaitStatus;
 		HANDLE notifyHandles[2];
-		/*
-		notifyHandles[0] = FindFirstChangeNotification(
-		PASSModel::getAltVRPath("shaders\\").data(),
-		FALSE,
-		FILE_NOTIFY_CHANGE_LAST_WRITE\
-		);
-		*/
-		std::string pathToWatch = VTKModel::getResourcePath("shaders\\");
 
+		std::string pathToWatch = VTKModel::getResourcePath("shaders\\");
 
 		notifyHandles[0] = FindFirstChangeNotification(pathToWatch.c_str(), FALSE, FILE_NOTIFY_CHANGE_LAST_WRITE);
 
@@ -223,11 +217,38 @@ void VTKModel::watchFileForNewProgram() {
 
 	}
 #endif
+
+
 }
 
+double VTKModel::getExtentAlongAxis(int axis) {
+	double extent = 0.0;
+	if (axis < 0 || axis > 2) {
+		return extent;
+	}
+	double temp[6];
+	m_triangles->GetBounds(temp);
+	
+	int idx = axis * 2;
+	return temp[idx + 1] - temp[idx];
+}
 
+glm::vec3 VTKModel::getCenter() {
 
-void VTKModel::render(glm::mat4 obj, glm::mat4 proj, glm::mat4 view) {
+	glm::vec3 center = glm::vec3(0.0f);
+	if (!m_triangles) {
+		return center;
+	}
+	double temp[3];
+	m_triangles->GetCenter(temp);
+	center.x = temp[0];
+	center.y = temp[1];
+	center.z = temp[2];
+
+	return center;
+}
+
+void VTKModel::render(glm::mat4 model, glm::mat4 proj, glm::mat4 view) {
 
 	if (!m_isInitialized) {
 		init();
@@ -237,31 +258,22 @@ void VTKModel::render(glm::mat4 obj, glm::mat4 proj, glm::mat4 view) {
 		reloadProgram();
 	}
 
-	glm::mat4 norm = obj;
 
-	glm::mat4 wvp = proj * view * obj;
+	glm::mat4 norm = model;
+	glm::mat4 mvp = proj * view * model;
 
-	m_matObj = obj;
+	m_matModel= model;
 	m_matProj = proj;
 	m_matView = view;
 	m_matNorm = norm;
 
-
-	char variableName[256];
-
-
-	glEnable(GL_DEPTH_TEST);
-	glFrontFace(GL_CW);
-
-	//glEnable(GL_MULTISAMPLE);
 	glUseProgram(m_program);
 
-	glUniformMatrix4fv(ufLoc("matWVP"), 1, GL_FALSE, glm::value_ptr(wvp));
+	glUniformMatrix4fv(ufLoc("matMVP"), 1, GL_FALSE, glm::value_ptr(mvp));
 	glUniformMatrix4fv(ufLoc("matProjection"), 1, GL_FALSE, glm::value_ptr(proj));
 	glUniformMatrix4fv(ufLoc("matView"), 1, GL_FALSE, glm::value_ptr(view));
-	glUniformMatrix4fv(ufLoc("matObject"), 1, GL_FALSE, glm::value_ptr(obj));
+	glUniformMatrix4fv(ufLoc("matModel"), 1, GL_FALSE, glm::value_ptr(model));
 	glUniformMatrix4fv(ufLoc("matNormal"), 1, GL_FALSE, glm::value_ptr(norm));
-
 
 	/*
 	glUniform4fv(glGetUniformLocation(program, "FrontMaterial.ambient"), 1, m_material.front.fAmbient);
@@ -280,7 +292,6 @@ void VTKModel::render(glm::mat4 obj, glm::mat4 proj, glm::mat4 view) {
 	m_glBuffer->render();
 
 	glUseProgram(0);
-	//glDisable(GL_MULTISAMPLE);
 
 }
 

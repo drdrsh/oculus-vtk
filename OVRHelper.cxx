@@ -16,6 +16,8 @@
 
 #include <glm/gtx/transform2.hpp>
 #include <glm/gtx/projection.hpp>
+#include <glm/vec2.hpp>
+
 
 
 #ifdef _WIN32
@@ -23,6 +25,8 @@
 #else
 	#include <GL/glxew.h>
 #endif
+
+OVRHelper * OVRHelper::m_instance;
 
 OVRHelper * OVRHelper::getInstance() {
 
@@ -33,10 +37,32 @@ OVRHelper * OVRHelper::getInstance() {
 	return m_instance;
 }
 
-OVRHelper::~OVRHelper() {
+
+void OVRHelper::setLookAt(glm::vec3 pos, glm::vec3 point) {
+	m_cameraPosition = glm::vec4(pos, 1.0f);
+	m_lookAtPoint = glm::vec4(point, 1.0f);
+}
+
+void OVRHelper::release() {
+	ovr_Destroy(this->m_HMD);
+	ovr_Shutdown();
 	if (!m_instance) {
 		delete m_instance;
 	}
+}
+
+OVRHelper::~OVRHelper() {
+	release();
+}
+
+
+
+glm::ivec2 OVRHelper::getViewportSize() {
+
+	glm::ivec2 size;
+	size.x = m_hmdDesc.Resolution.w / 2;
+	size.y = m_hmdDesc.Resolution.h / 2;
+	return size;
 }
 
 void OVRHelper::render(void(*renderCallback)(glm::mat4, glm::mat4)) {
@@ -77,16 +103,23 @@ void OVRHelper::render(void(*renderCallback)(glm::mat4, glm::mat4)) {
 		float empty = 0.0f;
 
 		glm::vec4 up = glm::vec4();
-		up[0] = 0.0f; up[1] = 1.0f; up[2] = 0.0f; up[3] = empty;
-
+		up.x = 0.0f; 
+		up.y = 1.0f; 
+		up.z = 0.0f; 
+		up.w = 0.0f;   //This is a direction, we set w to 0.0f
+		
 		glm::vec4 forward = glm::vec4();
-		forward[0] = 0.0f; forward[1] = 0.0f; forward[2] = -1.0f; forward[3] = empty;
+		forward.x =  0.0f;
+		forward.y =  0.0f;
+		forward.z = -1.0f;
+		forward.w =  0.0f;     //This is a direction, we set w to 0.0f
+
 
 		glm::vec4 position = glm::vec4();
-		position[0] = EyeRenderPose[eye].Position.x;
-		position[1] = EyeRenderPose[eye].Position.y;
-		position[2] = EyeRenderPose[eye].Position.z;
-		position[3] = empty;
+		position.x = EyeRenderPose[eye].Position.x;
+		position.y = EyeRenderPose[eye].Position.y;
+		position.z = EyeRenderPose[eye].Position.z;
+		position.w = 1.0f;				 //This is a position, we set w to 1.0f
 
 
 		glm::mat4 finalRollPitchYaw = rollPitchYaw * glm::mat4_cast(eyeOrientation);
@@ -94,18 +127,22 @@ void OVRHelper::render(void(*renderCallback)(glm::mat4, glm::mat4)) {
 		glm::vec4 finalForward = finalRollPitchYaw * forward;
 		glm::vec4 shiftedEyePos = m_cameraPosition + rollPitchYaw * position;
 
-		//m_lastUp = finalUp;
-		//m_lastLookAt = finalForward;
+		m_view = glm::lookAt(
+			(glm::vec3)m_cameraPosition,
+			(glm::vec3)m_lookAtPoint,
+			(glm::vec3)up
+		);
 
-		m_view  = glm::mat4(1.0);  //loadIdentity
-		m_view *= glm::lookAt(
+		m_view = glm::lookAt(
 			(glm::vec3)shiftedEyePos, 
 			(glm::vec3)(shiftedEyePos + finalForward),
 			(glm::vec3)finalUp
 		);
+
+		//Possible unnecessary performance hit, converting from ovrMatrix4f to glm::mat4
 		ovrMatrix4f m = ovrMatrix4f_Projection(m_hmdDesc.DefaultEyeFov[eye], 0.2f, 1000.0f, ovrProjection_RightHanded);
-		m_projection = glm::make_mat4(&m.M);
-		
+		m_projection = glm::make_mat4((float*)&m.M);
+		m_projection = glm::transpose(m_projection);
 		renderCallback(m_projection, m_view);
 
 
@@ -132,7 +169,7 @@ void OVRHelper::render(void(*renderCallback)(glm::mat4, glm::mat4)) {
 	for (int eye = 0; eye < 2; ++eye)
 	{
 		ld.ColorTexture[eye] = m_pEyeRenderTexture[eye]->TextureSet;
-		ld.Viewport[eye] = Recti(m_pEyeRenderTexture[eye]->GetSize());
+		ld.Viewport[eye] = OVR::Recti(m_pEyeRenderTexture[eye]->GetSize());
 		ld.Fov[eye] = m_hmdDesc.DefaultEyeFov[eye];
 		ld.RenderPose[eye] = EyeRenderPose[eye];
 		ld.SensorSampleTime = sensorSampleTime;
@@ -160,7 +197,11 @@ void OVRHelper::render(void(*renderCallback)(glm::mat4, glm::mat4)) {
 
 void OVRHelper::init() {
 
-	ovrResult result = ovr_Create(&this->m_HMD, &this->m_luid);
+	ovrResult result;
+	
+	result = ovr_Initialize(nullptr);
+
+	result = ovr_Create(&this->m_HMD, &this->m_luid);
 
 	m_hmdDesc = ovr_GetHmdDesc(m_HMD);
 

@@ -8,10 +8,13 @@
 #include <gl/Gl.h>
 #include <gl/Glu.h>
 
+#include "Extras/OVR_Math.h"
+
 #include "Kernel/OVR_System.h"
 #include "OVR_CAPI_0_8_0.h"
+
 #include "OVR_CAPI_GL.h"
-#include "Extras/OVR_Math.h"
+
 void checkForOpenglErrors(int, const char *);
 
 #define GLERR  checkForOpenglErrors(__LINE__, __FILE__);
@@ -21,6 +24,8 @@ void checkForOpenglErrors(int, const char *);
 #define VALIDATE(x, msg) if (!(x)) { AfxMessageBox(msg); exit(-1); }
 #endif
 
+typedef OVR::Size<int>  Sizei;
+
 //---------------------------------------------------------------------------------------
 struct DepthBuffer
 {
@@ -28,7 +33,7 @@ struct DepthBuffer
 
 	DepthBuffer(Sizei size, int sampleCount)
 	{
-		OVR_ASSERT(sampleCount <= 1); // The code doesn't currently handle MSAA textures.
+		//OVR_ASSERT(sampleCount <= 1); // The code doesn't currently handle MSAA textures.
 
 		glGenTextures(1, &texId);
 		glBindTexture(GL_TEXTURE_2D, texId);
@@ -74,15 +79,15 @@ struct TextureBuffer
 		fboId(0),
 		texSize(0, 0)
 	{
-		OVR_ASSERT(sampleCount <= 1); // The code doesn't currently handle MSAA textures.
+		//OVR_ASSERT(sampleCount <= 1); // The code doesn't currently handle MSAA textures.
 
 		texSize = size;
 
 		if (displayableOnHmd)
 		{
 			// This texture isn't necessarily going to be a rendertarget, but it usually is.
-			OVR_ASSERT(hmd); // No HMD? A little odd.
-			OVR_ASSERT(sampleCount == 1); // ovr_CreateSwapTextureSetD3D11 doesn't support MSAA.
+			//OVR_ASSERT(hmd); // No HMD? A little odd.
+			//OVR_ASSERT(sampleCount == 1); // ovr_CreateSwapTextureSetD3D11 doesn't support MSAA.
 
 			ovrResult result = ovr_CreateSwapTextureSetGL(hmd, GL_SRGB8_ALPHA8, size.w, size.h, &TextureSet);
 

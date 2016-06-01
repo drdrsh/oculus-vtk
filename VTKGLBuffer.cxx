@@ -130,7 +130,7 @@ void VTKGLBuffer::loadVertexBuffers() {
 			GL_FALSE,
 			0,
 			NULL
-			);
+		);
 		buffers.insert_or_assign(arrName, buffer);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 

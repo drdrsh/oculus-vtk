@@ -10,6 +10,10 @@
 
 #include "Extras/OVR_Math.h"
 
+#include "definitions.h"
+#include <glm/mat4x4.hpp>
+#include <glm/vec2.hpp>
+
 class OVRHelper {
 
 public:
@@ -17,13 +21,19 @@ public:
 	static OVRHelper * getInstance();
 
 	void init();
+	void release();
 	void render(void(*renderCallback)(glm::mat4, glm::mat4));
-	
+	void setLookAt(glm::vec3 pos, glm::vec3 point);
+	glm::ivec2 getViewportSize();
+
 	~OVRHelper();
 
 private:
 
-	OVRHelper();
+	OVRHelper() { 
+		m_cameraPosition = glm::vec4(0.0f);
+		m_lookAtPoint = glm::vec4(0.0f, 0.0f, -1.0f, 1.0f);
+	}
 
 	static OVRHelper *m_instance;
 
@@ -42,6 +52,7 @@ private:
 
 	float			m_cameraYaw = 3.141592f;
 	glm::vec4       m_cameraPosition;
+	glm::vec4		m_lookAtPoint;
 	ovrGLTexture*   m_pMirrorTexture = nullptr;
 	GLuint          m_uiMirrorFBO = 0;
 
