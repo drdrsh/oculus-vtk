@@ -107,6 +107,7 @@ set(SOURCES
         includes/OVRHelper.h
         includes/VTKGLBuffer.h
         includes/definitions.h
+        includes/OVRBuffers.h
         shaders/simple_common.glsl
         shaders/simple_vertex.glsl
         shaders/simple_fragment.glsl

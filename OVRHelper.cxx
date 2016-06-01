@@ -1,30 +1,26 @@
-
 #include <GL/glew.h>
+#ifdef _WIN32
+#include <GL/wglew.h>
+#else
+#include <GL/glxew.h>
+#endif
 #include <GL/GL.h>
 
 #include <glm/mat4x4.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <glm/gtx/euler_angles.hpp>
 #include <glm/gtc/type_ptr.hpp>
-
-#include "definitions.h"
-#include "Extras/OVR_Math.h"
-#include "Kernel/OVR_System.h"
-#include "OVR_CAPI_0_8_0.h"
-#include "OVR_CAPI_GL.h"
-#include "OVRHelper.h"
-
 #include <glm/gtx/transform2.hpp>
 #include <glm/gtx/projection.hpp>
 #include <glm/vec2.hpp>
 
+#include "Extras/OVR_Math.h"
+#include "Kernel/OVR_System.h"
+#include "OVR_CAPI_0_8_0.h"
+#include "OVR_CAPI_GL.h"
 
-
-#ifdef _WIN32
-	#include <GL/wglew.h>
-#else
-	#include <GL/glxew.h>
-#endif
+#include "OVRHelper.h"
+#include "definitions.h"
 
 OVRHelper * OVRHelper::m_instance;
 
@@ -44,8 +40,14 @@ void OVRHelper::setLookAt(glm::vec3 pos, glm::vec3 point) {
 }
 
 void OVRHelper::release() {
+
+	for (int eye = 0; eye < 2; ++eye) {
+		delete this->m_pEyeRenderTexture[eye];
+		delete this->m_pEyeDepthBuffer[eye];
+	}
 	ovr_Destroy(this->m_HMD);
 	ovr_Shutdown();
+
 	if (!m_instance) {
 		delete m_instance;
 	}
@@ -143,6 +145,7 @@ void OVRHelper::render(void(*renderCallback)(glm::mat4, glm::mat4)) {
 		ovrMatrix4f m = ovrMatrix4f_Projection(m_hmdDesc.DefaultEyeFov[eye], 0.2f, 1000.0f, ovrProjection_RightHanded);
 		m_projection = glm::make_mat4((float*)&m.M);
 		m_projection = glm::transpose(m_projection);
+
 		renderCallback(m_projection, m_view);
 
 
@@ -178,7 +181,7 @@ void OVRHelper::render(void(*renderCallback)(glm::mat4, glm::mat4)) {
 	ovrLayerHeader* layers = &ld.Header;
 	ovrResult result = ovr_SubmitFrame(m_HMD, 0, &viewScaleDesc, &layers, 1);
 	// exit the rendering loop if submit returns an error, will retry on ovrError_DisplayLost
-	//VALIDATE(OVR_SUCCESS(result), "Failed to submit frame to HMD");
+	VALIDATE(OVR_SUCCESS(result), "Failed to submit frame to HMD");
 
 	//isVisible = (result == ovrSuccess);
 
@@ -200,8 +203,11 @@ void OVRHelper::init() {
 	ovrResult result;
 	
 	result = ovr_Initialize(nullptr);
+	VALIDATE(OVR_SUCCESS(result), "Failed to initialize HMD");
+
 
 	result = ovr_Create(&this->m_HMD, &this->m_luid);
+	VALIDATE(OVR_SUCCESS(result), "Failed to initialize HMD");
 
 	m_hmdDesc = ovr_GetHmdDesc(m_HMD);
 
@@ -220,7 +226,7 @@ void OVRHelper::init() {
 
 		if (!this->m_pEyeRenderTexture[eye]->TextureSet)
 		{
-			//VALIDATE(false, "Failed to create texture.");
+			VALIDATE(false, "Failed to create texture.");
 			return;
 		}
 	}
@@ -228,7 +234,7 @@ void OVRHelper::init() {
 	// Create mirror texture and an FBO used to copy mirror texture to back buffer
 	result = ovr_CreateMirrorTextureGL(this->m_HMD, GL_SRGB8_ALPHA8, windowSize.w, windowSize.h, reinterpret_cast<ovrTexture**>(&this->m_pMirrorTexture));
 	if (!OVR_SUCCESS(result)) {
-		//VALIDATE(OVR_SUCCESS(result), "Failed to create mirror texture.");
+		VALIDATE(OVR_SUCCESS(result), "Failed to create mirror texture.");
 		return;
 	}
 
@@ -249,23 +255,5 @@ void OVRHelper::init() {
 	glXSwapIntervalEXT(0);
 #endif
 
-
-
-
-	// enable the z buffer
-	glClearDepth(1);
-	glEnable(GL_DEPTH_TEST);
-
-
-	glShadeModel(GL_SMOOTH);
-	glEnable(GL_NORMALIZE);
-
 	glGenFramebuffers(1, &this->m_uiFBOId);
-
-	glEnable(GL_DEPTH_TEST);
-	glFrontFace(GL_CCW);
-	//glEnable(GL_CULL_FACE);
-
-
-
 }

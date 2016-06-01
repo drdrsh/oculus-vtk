@@ -1,15 +1,16 @@
-#ifndef VTKMODE_H
-#define VTKMODE_H
+#ifndef VTKMODEL_H
+#define VTKMODEL_H
 
 #include <GL/glew.h>
 #include <GL/GL.h>
-#include <glm/mat4x4.hpp>
 
+#include <glm/mat4x4.hpp>
 
 #include <vtkPolyData.h>
 #include <vtkCellArray.h>
 #include <vtkPointData.h>
 #include <vtkSmartPointer.h>
+
 #include "VTKGLBuffer.h"
 #include "definitions.h"
 

@@ -1,60 +1,35 @@
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+//TODO: Added needed files to implement a file edit hook
+#endif
+
+#include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
+#include <vtkVoxelModeller.h>
+#include <vtkImageData.h>
+#include <vtkMarchingCubes.h>
+#include <vtkSphereSource.h>
+#include <vtkNIFTIImageReader.h>
+#include <vtkPolyData.h>
+#include <vtkCellArray.h>
+#include <vtkPolygon.h>
+#include <vtkPoints.h>
+
 #include <thread>
 #include <fstream>
 #include <algorithm>
 #include <vector>
 #include <regex>
-#include <map>
 #include <sstream>
 #include <streambuf>
-#include <iostream>
-#include <vtkCellData.h>
-#include <vtkCellArray.h>
-#include <vtkFloatArray.h>
-#include <vtkPoints.h>
-#include <vtkPolyData.h>
-#include <vtkPointData.h>
-#include <vtkSmartPointer.h>
-#include <vtkGenericCell.h>
-#include <vtkTriangle.h>
-#include <vtkSmoothPolyDataFilter.h>
-#include <vtkPolyDataNormals.h>
-#include <vtkDecimatePro.h>
-#include <vtkOBBTree.h>
 
-
-
-#include <vtkVersion.h>
-#include <vtkSmartPointer.h>
-#include <vtkMarchingCubes.h>
-#include <vtkDiscreteMarchingCubes.h>
-#include <vtkVoxelModeller.h>
-#include <vtkSphereSource.h>
-#include <vtkImageData.h>
-#include <vtkNIFTIImageReader.h>
-#include <vtkWindowedSincPolyDataFilter.h>
-#include <vtkSmoothPolyDataFilter.h>
-
-#include <vtkActor.h>
-#include <vtkPolyDataMapper.h>
-#include <vtkRenderWindowInteractor.h>
-#include <vtkRenderWindow.h>
-#include <vtkRenderer.h>
-#include <vtkThreshold.h>
-#include <vtkDataSetAttributes.h>
-#include <vtkImageWrapPad.h>
-#include <vtkPointData.h>
-#include <vtkCellData.h>
-#include <vtkLookupTable.h>
-#include <vtkDecimatePro.h>
-#include <vtkPolygon.h>
-#include <vtkFillHolesFilter.h>
-
-
-#include "VTKModel.h"
 
 #include "definitions.h"
-#include <glm\glm.hpp>
-#include <glm/gtc/type_ptr.hpp>
+#include "VTKModel.h"
+
 
 vtkSmartPointer<vtkPolyData> VTKModel::getSpherePolyData() {
 
@@ -159,8 +134,6 @@ VTKModel::VTKModel(std::string filename, std::string program) {
 	VTK_NEW(volume, vtkImageData);
 	VTK_NEW(reader, vtkNIFTIImageReader);
 	VTK_NEW(surface, vtkMarchingCubes);
-	VTK_NEW(smoother, vtkSmoothPolyDataFilter);
-	VTK_NEW(decimate, vtkDecimatePro);
 
 	m_programName = program;
 	//m_triangles = getSquarePolyData();
@@ -173,7 +146,6 @@ VTKModel::VTKModel(std::string filename, std::string program) {
 
 void VTKModel::allocateBuffers() {
 	if (m_glBuffer) {
-		m_glBuffer->release();
 		delete m_glBuffer;
 		m_glBuffer = nullptr;
 	}
@@ -189,17 +161,16 @@ void VTKModel::init() {
 	}
 
 	readProgram();
-	GLERR;
-
+	
 	reloadProgram();
-	GLERR;
-
+	
 	allocateBuffers();
 
 }
 void VTKModel::watchFileForNewProgram() {
 
 #ifdef _WIN32
+	//This will detect changes to shaders and reload them without restarting the application
 	while (true) {
 		DWORD dwWaitStatus;
 		HANDLE notifyHandles[2];
@@ -404,53 +375,42 @@ void VTKModel::reloadProgram() {
 	log_file.close();
 
 	GLuint vertexShader = createShader(GL_VERTEX_SHADER, newVertexProgram.data());
-	GLERR;
 	GLuint fragmentShader = createShader(GL_FRAGMENT_SHADER, newFragmentProgram.data());
-	GLERR;
+
 	if (vertexShader == 0 || fragmentShader == 0) {
 		newVertexProgram.clear();
 		newFragmentProgram.clear();
 		if (vertexShader != 0) {
 			glDeleteShader(vertexShader);
-			GLERR;
 		}
 		if (fragmentShader != 0) {
 			glDeleteShader(fragmentShader);
-			GLERR;
 		}
 		return;
 	}
 
 	GLuint newProgram = glCreateProgram();
-	GLERR;
-
+	
 	glAttachShader(newProgram, vertexShader);
-	GLERR;
 	glAttachShader(newProgram, fragmentShader);
-	GLERR;
-
+	
 	glLinkProgram(newProgram);
-	GLERR;
-
+	
 	glDetachShader(newProgram, vertexShader);
-	GLERR;
 	glDetachShader(newProgram, fragmentShader);
-	GLERR;
-
+	
 	glDeleteShader(vertexShader);
-	GLERR;
 	glDeleteShader(fragmentShader);
-	GLERR;
+
 
 	GLint r;
 	glGetProgramiv(newProgram, GL_LINK_STATUS, &r);
-	GLERR;
+
 	if (!r) {
 		GLchar msg[1024];
 		std::ostringstream log_fn;
 
 		glGetProgramInfoLog(newProgram, sizeof(msg), 0, msg);
-		GLERR;
 
 		log_fn << "log\\" << m_programName << "_error.txt";
 		log_file.open(VTKModel::getResourcePath(log_fn.str()), std::ofstream::out | std::ofstream::app);
@@ -463,7 +423,6 @@ void VTKModel::reloadProgram() {
 		if (m_program != -1) {
 			glDeleteProgram(m_program);
 		}
-		GLERR;
 		m_program = newProgram;
 	}
 	newVertexProgram.clear();

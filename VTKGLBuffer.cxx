@@ -1,6 +1,5 @@
 #include <GL/glew.h>
 #include <GL/GL.h>
-#include <GL/GLU.h>
 
 #include "Kernel/OVR_System.h"
 #include "OVR_CAPI_0_8_0.h"
@@ -53,7 +52,7 @@ void VTKGLBuffer::loadIndexBuffer() {
 		indices.push_back(pointIds[1]);
 		indices.push_back(pointIds[2]);
 	}
-	indexCount = indices.size();
+	indexCount = (GLuint)indices.size();
 
 	glGenBuffers(1, &indexBuffer);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);

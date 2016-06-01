@@ -4,15 +4,16 @@
 #include <GL/glew.h>
 #include <GL/GL.h>
 
+#include <glm/mat4x4.hpp>
+#include <glm/vec2.hpp>
+
 #include "Kernel/OVR_System.h"
 #include "OVR_CAPI_0_8_0.h"
 #include "OVR_CAPI_GL.h"
-
 #include "Extras/OVR_Math.h"
 
 #include "definitions.h"
-#include <glm/mat4x4.hpp>
-#include <glm/vec2.hpp>
+#include "OVRBuffers.h"
 
 class OVRHelper {
 

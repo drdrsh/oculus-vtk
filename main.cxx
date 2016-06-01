@@ -1,73 +1,28 @@
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+//TODO: Added needed files to implement a file edit hook
+#endif
+
 #include <GL/glew.h>
+#include <GLFW/glfw3.h>
+
+#include <glm/vec3.hpp>
+#include <glm/gtx/transform2.hpp>
+#include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 
-#include <vtkVersion.h>
-#include <vtkSmartPointer.h>
-#include <vtkMarchingCubes.h>
-#include <vtkDiscreteMarchingCubes.h>
-#include <vtkVoxelModeller.h>
-#include <vtkSphereSource.h>
-#include <vtkImageData.h>
-#include <vtkNIFTIImageReader.h>
-#include <vtkWindowedSincPolyDataFilter.h>
-#include <vtkSmoothPolyDataFilter.h>
-
-#include <vtkActor.h>
-#include <vtkPolyDataMapper.h>
-#include <vtkRenderWindowInteractor.h>
-#include <vtkRenderWindow.h>
-#include <vtkRenderer.h>
-#include <vtkThreshold.h>
-#include <vtkDataSetAttributes.h>
-#include <vtkImageWrapPad.h>
-#include <vtkPointData.h>
-#include <vtkCellData.h>
-#include <vtkLookupTable.h>
-#include <vtkDecimatePro.h>
-#include <vtkFillHolesFilter.h>
-
-#include "OVRHelper.h"
 #include "definitions.h"
-
-//#define OUTPUT_FN "F:\\MAbdelraouf\\Projects\\CXX\\oculus - vtk\\src\\data\\H - 554_20041005_159571722609202.Lung.mask.img.gz"
-#define OUTPUT_FN "C:\\data\\left_mask.nii.gz"
-
-
-#include <stdio.h>
-#include <stdlib.h>
-
-
-#include <GLFW/glfw3.h>
 #include "VTKModel.h"
-#include <glm/gtx/transform2.hpp>
-#include <glm/gtx/projection.hpp>
-#include <glm/mat4x4.hpp>
+#include "OVRHelper.h"
+
+#define OUTPUT_FN "C:\\data\\left_mask.nii.gz"
 
 VTKModel *mainModel;
 
-void checkForOpenglErrors(int line, const char * fn) {
-
-	GLenum err(glGetError());
-
-	while (err != GL_NO_ERROR) {
-		std::string error;
-
-		switch (err) {
-		case GL_INVALID_OPERATION:				error = "INVALID_OPERATION";			 break;
-		case GL_INVALID_ENUM:				    error = "INVALID_ENUM";					 break;
-		case GL_INVALID_VALUE:					error = "INVALID_VALUE";				 break;
-		case GL_OUT_OF_MEMORY:					error = "OUT_OF_MEMORY";				 break;
-		case GL_INVALID_FRAMEBUFFER_OPERATION:  error = "INVALID_FRAMEBUFFER_OPERATION"; break;
-		}
-
-		std::cerr << fn << ":" << line << "  GL_" << error.c_str() << std::endl;
-		err = glGetError();
-	}
-}
-
 static void error_callback(int error, const char *description) {
-//	fputs(description, stderr);
-	
+	cerr << description;
 }
 
 static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
@@ -96,18 +51,21 @@ void init(GLFWwindow *window) {
 	OVRHelper::getInstance()->init();
 	glm::ivec2 windowSize = OVRHelper::getInstance()->getViewportSize();
 	glfwSetWindowSize(window, windowSize.x, windowSize.y);
-
+	
+	/*
+	This load a 3D image and builds a 3D model from voxels of the value "1" 
+	and uses shader programs starting with prefix "simple"
+	*/
 	mainModel = new VTKModel(std::string(OUTPUT_FN), std::string("simple"));
 
 	glm::vec3 center = mainModel->getCenter();
 	double depth = mainModel->getExtentAlongAxis(2);
 
+	//Move the camera to be outside the object
 	glm::vec3 camera = center;
 	camera.z -= depth - 50.0f;
 
 	OVRHelper::getInstance()->setLookAt(camera, center);
-
-
 
 }
 
@@ -140,7 +98,7 @@ int main(void) {
 	glewInit();
 
 	init(window);
-	GLERR;
+
 	while (!glfwWindowShouldClose(window)) {
 		render(window);
 
@@ -153,37 +111,4 @@ int main(void) {
 
 	glfwTerminate();
 	exit(EXIT_SUCCESS);
-}
-
-int mxin(int argc, char * argv[]) {
-
-
-	return 0;
-	try {
-
-		double isoValue;
-		VTK_NEW(volume, vtkImageData);
-		VTK_NEW(reader, vtkNIFTIImageReader);
-		VTK_NEW(surface, vtkDiscreteMarchingCubes);
-		VTK_NEW(smoother, vtkSmoothPolyDataFilter);
-		VTK_NEW(decimate, vtkDecimatePro);
-		
-
-		reader->SetFileName(OUTPUT_FN);
-		reader->Update();
-		volume->DeepCopy(reader->GetOutput());
-
-		surface->SetInputData(volume);
-		surface->ComputeNormalsOn();
-		surface->Update();
-
-		
-
-
-	} catch (std::exception e) {
-		std::cerr << "C++ Runtime Exception caught:" << std::endl;
-		std::cerr << e.what() << std::endl;
-		return EXIT_FAILURE;
-	}
-	return EXIT_SUCCESS;
 }
