@@ -1,3 +1,4 @@
 /external/glew
 /external/glfw
 /external/glm
+/includes/paths.h

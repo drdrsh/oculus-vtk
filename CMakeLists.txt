@@ -8,7 +8,10 @@ include(${VTK_USE_FILE})
 
 include("FindOculusSDK.cmake")
 
-set(EXTERNAL_DIR "${CMAKE_SOURCE_DIR}/external")
+set(EXTERNAL_DIR  "${CMAKE_SOURCE_DIR}/external")
+set(RESOURCES_DIR "${CMAKE_SOURCE_DIR}/resources")
+set(TEMPLATES_DIR "${CMAKE_SOURCE_DIR}/templates")
+set(INCLUDES_DIR  "${CMAKE_SOURCE_DIR}/includes")
 
 
 set(GLFW_SOURCE_DIR "${EXTERNAL_DIR}/glfw")
@@ -85,7 +88,6 @@ include_directories(
     ${GLM_SOURCE_DIR}
     ${GLEW_SOURCE_DIR}/include
     ${OCULUS_SDK_INCLUDE_DIRS}
-	${OCULUS_SDK_ROOT_DIR}/LibOVRKernel/Src
 	includes
 )
 
@@ -98,6 +100,8 @@ target_link_libraries(glew ${GLFW_LIBRARIES} ${OPENGL_LIBRARIES})
 
 add_definitions( -DGLEW_STATIC)
 
+configure_file( "${TEMPLATES_DIR}/paths.h.in" "${INCLUDES_DIR}/paths.h" )
+
 set(SOURCES 
         main.cxx
         VTKModel.cxx
@@ -108,10 +112,9 @@ set(SOURCES
         includes/VTKGLBuffer.h
         includes/definitions.h
         includes/OVRBuffers.h
-        shaders/simple_common.glsl
-        shaders/simple_vertex.glsl
-        shaders/simple_fragment.glsl
+		includes/paths.h
 )
+
 
 
 add_executable(OculusVTKBoilerplate ${SOURCES})
