@@ -1,8 +1,7 @@
 #include <GL/glew.h>
 #include <GL/GL.h>
 
-#include "Kernel/OVR_System.h"
-#include "OVR_CAPI_0_8_0.h"
+#include "OVR_CAPI.h"
 #include "OVR_CAPI_GL.h"
 
 #include <vtkDataArray.h>

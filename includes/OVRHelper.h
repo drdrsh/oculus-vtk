@@ -7,8 +7,8 @@
 #include <glm/mat4x4.hpp>
 #include <glm/vec2.hpp>
 
-#include "Kernel/OVR_System.h"
-#include "OVR_CAPI_0_8_0.h"
+
+#include "OVR_CAPI.h"
 #include "OVR_CAPI_GL.h"
 #include "Extras/OVR_Math.h"
 
@@ -51,13 +51,13 @@ private:
 	glm::mat4		m_view;
 
 
-	float			m_cameraYaw = 3.141592f;
-	glm::vec4       m_cameraPosition;
-	glm::vec4		m_lookAtPoint;
-	ovrGLTexture*   m_pMirrorTexture = nullptr;
-	GLuint          m_uiMirrorFBO = 0;
+	float			  m_cameraYaw = 3.141592f;
+	glm::vec4         m_cameraPosition;
+	glm::vec4		  m_lookAtPoint;
+	ovrMirrorTexture  m_pMirrorTexture = nullptr;
+	GLuint            m_uiMirrorFBO = 0;
 
-	ovrHmd			m_HMD;
+	ovrSession		  m_HMD;
 	ovrGraphicsLuid m_luid;
 
 

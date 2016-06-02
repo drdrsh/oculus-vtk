@@ -26,7 +26,7 @@
 #include <sstream>
 #include <streambuf>
 
-
+#include "paths.h"
 #include "definitions.h"
 #include "VTKModel.h"
 
@@ -269,21 +269,7 @@ void VTKModel::render(glm::mat4 model, glm::mat4 proj, glm::mat4 view) {
 
 
 std::string VTKModel::getResourcePath(std::string p) {
-
-#ifdef _DEBUG
-	std::string vrPath = "F:\\MAbdelraouf\\Projects\\CXX\\oculus-vtk\\src\\";
-#else
-	if (vrPath.length() == 0) {
-		TCHAR buff[MAX_PATH];
-		memset(buff, 0, MAX_PATH);
-		::GetModuleFileName(NULL, buff, sizeof(buff));
-		CString VRDirectory = buff;
-		VRDirectory = VRDirectory.Left(VRDirectory.ReverseFind(_T('\\')) + 1);
-		VRDirectory.Append(_T("VR\\"));
-		vrPath = VRDirectory.GetString();
-	}
-#endif
-	std::string newPath = vrPath;
+	std::string newPath = RESOURCES_PATH;
 	newPath = newPath.append(p);
 	return newPath;
 }
@@ -294,8 +280,6 @@ VTKModel::~VTKModel() {
 
 GLuint VTKModel::createShader(GLenum type, const GLchar * src)
 {
-
-
 	std::string output_text;
 
 	//Correction for the line number in the error message

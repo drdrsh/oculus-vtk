@@ -8,19 +8,17 @@
 #include <iostream>
 
 #include "Extras/OVR_Math.h"
-#include "Kernel/OVR_System.h"
-#include "OVR_CAPI_0_8_0.h"
+#include "OVR_CAPI.h"
 
 #include "definitions.h"
 
-//---------------------------------------------------------------------------------------
 struct DepthBuffer
 {
 	GLuint        texId;
 
 	DepthBuffer(Sizei size, int sampleCount)
 	{
-		//OVR_ASSERT(sampleCount <= 1); // The code doesn't currently handle MSAA textures.
+		assert(sampleCount <= 1); // The code doesn't currently handle MSAA textures.
 
 		glGenTextures(1, &texId);
 		glBindTexture(GL_TEXTURE_2D, texId);
@@ -53,36 +51,51 @@ struct DepthBuffer
 //--------------------------------------------------------------------------
 struct TextureBuffer
 {
-	ovrHmd              hmd;
-	ovrSwapTextureSet*  TextureSet;
+	ovrSession          Session;
+	ovrTextureSwapChain  TextureChain;
 	GLuint              texId;
 	GLuint              fboId;
 	Sizei               texSize;
 
-	TextureBuffer(ovrHmd hmd, bool rendertarget, bool displayableOnHmd, Sizei size, int mipLevels, unsigned char * data, int sampleCount) :
-		hmd(hmd),
-		TextureSet(nullptr),
+	TextureBuffer(ovrSession session, bool rendertarget, bool displayableOnHmd, Sizei size, int mipLevels, unsigned char * data, int sampleCount) :
+		Session(session),
+		TextureChain(nullptr),
 		texId(0),
 		fboId(0),
 		texSize(0, 0)
 	{
-		//OVR_ASSERT(sampleCount <= 1); // The code doesn't currently handle MSAA textures.
+		assert(sampleCount <= 1); // The code doesn't currently handle MSAA textures.
 
 		texSize = size;
 
 		if (displayableOnHmd)
 		{
 			// This texture isn't necessarily going to be a rendertarget, but it usually is.
-			VALIDATE(hmd, "HMD not found!"); // No HMD? A little odd.
+			assert(session); // No HMD? A little odd.
+			assert(sampleCount == 1); // ovr_CreateSwapTextureSetD3D11 doesn't support MSAA.
 
-			ovrResult result = ovr_CreateSwapTextureSetGL(hmd, GL_SRGB8_ALPHA8, size.w, size.h, &TextureSet);
+			ovrTextureSwapChainDesc desc = {};
+			desc.Type = ovrTexture_2D;
+			desc.ArraySize = 1;
+			desc.Width = size.w;
+			desc.Height = size.h;
+			desc.MipLevels = 1;
+			desc.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
+			desc.SampleCount = 1;
+			desc.StaticImage = ovrFalse;
+
+			ovrResult result = ovr_CreateTextureSwapChainGL(Session, &desc, &TextureChain);
+
+			int length = 0;
+			ovr_GetTextureSwapChainLength(session, TextureChain, &length);
 
 			if (OVR_SUCCESS(result))
 			{
-				for (int i = 0; i < TextureSet->TextureCount; ++i)
+				for (int i = 0; i < length; ++i)
 				{
-					ovrGLTexture* tex = (ovrGLTexture*)&TextureSet->Textures[i];
-					glBindTexture(GL_TEXTURE_2D, tex->OGL.TexId);
+					GLuint chainTexId;
+					ovr_GetTextureSwapChainBufferGL(Session, TextureChain, i, &chainTexId);
+					glBindTexture(GL_TEXTURE_2D, chainTexId);
 
 					if (rendertarget)
 					{
@@ -130,15 +143,14 @@ struct TextureBuffer
 		}
 
 		glGenFramebuffers(1, &fboId);
-
 	}
 
 	~TextureBuffer()
 	{
-		if (TextureSet)
+		if (TextureChain)
 		{
-			ovr_DestroySwapTextureSet(hmd, TextureSet);
-			TextureSet = nullptr;
+			ovr_DestroyTextureSwapChain(Session, TextureChain);
+			TextureChain = nullptr;
 		}
 		if (texId)
 		{
@@ -159,10 +171,20 @@ struct TextureBuffer
 
 	void SetAndClearRenderSurface(DepthBuffer* dbuffer)
 	{
-		auto tex = reinterpret_cast<ovrGLTexture*>(&TextureSet->Textures[TextureSet->CurrentIndex]);
+		GLuint curTexId;
+		if (TextureChain)
+		{
+			int curIndex;
+			ovr_GetTextureSwapChainCurrentIndex(Session, TextureChain, &curIndex);
+			ovr_GetTextureSwapChainBufferGL(Session, TextureChain, curIndex, &curTexId);
+		}
+		else
+		{
+			curTexId = texId;
+		}
 
 		glBindFramebuffer(GL_FRAMEBUFFER, fboId);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex->OGL.TexId, 0);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, curTexId, 0);
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, dbuffer->texId, 0);
 
 		glViewport(0, 0, texSize.w, texSize.h);
@@ -176,6 +198,13 @@ struct TextureBuffer
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
 	}
-};
 
+	void Commit()
+	{
+		if (TextureChain)
+		{
+			ovr_CommitTextureSwapChain(Session, TextureChain);
+		}
+	}
+}; 
 #endif

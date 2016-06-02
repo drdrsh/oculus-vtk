@@ -15,8 +15,7 @@
 #include <glm/vec2.hpp>
 
 #include "Extras/OVR_Math.h"
-#include "Kernel/OVR_System.h"
-#include "OVR_CAPI_0_8_0.h"
+#include "OVR_CAPI.h"
 #include "OVR_CAPI_GL.h"
 
 #include "OVRHelper.h"
@@ -74,8 +73,8 @@ void OVRHelper::render(void(*renderCallback)(glm::mat4, glm::mat4)) {
 	}
 
 	ovrVector3f ViewOffset[2] = {
-		m_eyeRenderDesc[0].HmdToEyeViewOffset,
-		m_eyeRenderDesc[1].HmdToEyeViewOffset
+		m_eyeRenderDesc[0].HmdToEyeOffset,
+		m_eyeRenderDesc[1].HmdToEyeOffset
 	};
 	ovrPosef EyeRenderPose[2];
 
@@ -87,9 +86,6 @@ void OVRHelper::render(void(*renderCallback)(glm::mat4, glm::mat4)) {
 
 	for (int eye = 0; eye < 2; ++eye)
 	{
-		// Increment to use next texture, just before writing
-		m_pEyeRenderTexture[eye]->TextureSet->CurrentIndex = (m_pEyeRenderTexture[eye]->TextureSet->CurrentIndex + 1) % m_pEyeRenderTexture[eye]->TextureSet->TextureCount;
-
 		// Switch to eye render target
 		m_pEyeRenderTexture[eye]->SetAndClearRenderSurface(m_pEyeDepthBuffer[eye]);
 
@@ -142,7 +138,7 @@ void OVRHelper::render(void(*renderCallback)(glm::mat4, glm::mat4)) {
 		);
 
 		//Possible unnecessary performance hit, converting from ovrMatrix4f to glm::mat4
-		ovrMatrix4f m = ovrMatrix4f_Projection(m_hmdDesc.DefaultEyeFov[eye], 0.2f, 1000.0f, ovrProjection_RightHanded);
+		ovrMatrix4f m = ovrMatrix4f_Projection(m_hmdDesc.DefaultEyeFov[eye], 0.2f, 1000.0f, ovrProjection_None);
 		m_projection = glm::make_mat4((float*)&m.M);
 		m_projection = glm::transpose(m_projection);
 
@@ -154,16 +150,12 @@ void OVRHelper::render(void(*renderCallback)(glm::mat4, glm::mat4)) {
 		// would bind a framebuffer with an invalid COLOR_ATTACHMENT0 because the texture ID
 		// associated with COLOR_ATTACHMENT0 had been unlocked by calling wglDXUnlockObjectsNV.
 		m_pEyeRenderTexture[eye]->UnsetRenderSurface();
+
+		// Commit changes to the textures so they get picked up frame
+		m_pEyeRenderTexture[eye]->Commit();
 	}
 
 	// Do distortion rendering, Present and flush/sync
-
-	// Set up positional data.
-	ovrViewScaleDesc viewScaleDesc;
-	viewScaleDesc.HmdSpaceToWorldScaleInMeters = 1.0f;
-	viewScaleDesc.HmdToEyeViewOffset[0] = ViewOffset[0];
-	viewScaleDesc.HmdToEyeViewOffset[1] = ViewOffset[1];
-
 
 	ovrLayerEyeFov ld;
 	ld.Header.Type = ovrLayerType_EyeFov;
@@ -171,7 +163,7 @@ void OVRHelper::render(void(*renderCallback)(glm::mat4, glm::mat4)) {
 
 	for (int eye = 0; eye < 2; ++eye)
 	{
-		ld.ColorTexture[eye] = m_pEyeRenderTexture[eye]->TextureSet;
+		ld.ColorTexture[eye] = m_pEyeRenderTexture[eye]->TextureChain;
 		ld.Viewport[eye] = OVR::Recti(m_pEyeRenderTexture[eye]->GetSize());
 		ld.Fov[eye] = m_hmdDesc.DefaultEyeFov[eye];
 		ld.RenderPose[eye] = EyeRenderPose[eye];
@@ -179,20 +171,30 @@ void OVRHelper::render(void(*renderCallback)(glm::mat4, glm::mat4)) {
 	}
 
 	ovrLayerHeader* layers = &ld.Header;
-	ovrResult result = ovr_SubmitFrame(m_HMD, 0, &viewScaleDesc, &layers, 1);
+	ovrResult result = ovr_SubmitFrame(m_HMD, 0, nullptr, &layers, 1);
 	// exit the rendering loop if submit returns an error, will retry on ovrError_DisplayLost
 	VALIDATE(OVR_SUCCESS(result), "Failed to submit frame to HMD");
 
-	//isVisible = (result == ovrSuccess);
+	ovrSessionStatus sessionStatus;
+	ovr_GetSessionStatus(m_HMD, &sessionStatus);
+	if (sessionStatus.ShouldQuit) {
+		exit(-1);
+	}
+	if (sessionStatus.ShouldRecenter) {
+		ovr_RecenterTrackingOrigin(m_HMD);
+	}
 
 	// Blit mirror texture to back buffer
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, this->m_uiMirrorFBO);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-	GLint w = this->m_pMirrorTexture->OGL.Header.TextureSize.w;
-	GLint h = this->m_pMirrorTexture->OGL.Header.TextureSize.h;
-	glBlitFramebuffer(0, h, w, 0,
+	glm::ivec2 viewportSize = getViewportSize();
+	GLint w = viewportSize.x;
+	GLint h = viewportSize.y;
+	glBlitFramebuffer(
+		0, h, w, 0,
 		0, 0, w, h,
-		GL_COLOR_BUFFER_BIT, GL_NEAREST);
+		GL_COLOR_BUFFER_BIT, GL_NEAREST
+	);
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 
 
@@ -224,24 +226,33 @@ void OVRHelper::init() {
 		this->m_pEyeRenderTexture[eye] = new TextureBuffer(this->m_HMD, true, true, idealTextureSize, 1, NULL, 1);
 		this->m_pEyeDepthBuffer[eye] = new DepthBuffer(this->m_pEyeRenderTexture[eye]->GetSize(), 0);
 
-		if (!this->m_pEyeRenderTexture[eye]->TextureSet)
+		if (!this->m_pEyeRenderTexture[eye]->TextureChain)
 		{
 			VALIDATE(false, "Failed to create texture.");
 			return;
 		}
 	}
 
+	ovrMirrorTextureDesc desc;
+	memset(&desc, 0, sizeof(desc));
+	desc.Width = windowSize.w;
+	desc.Height = windowSize.h;
+	desc.Format = OVR_FORMAT_R8G8B8A8_UNORM_SRGB;
+
 	// Create mirror texture and an FBO used to copy mirror texture to back buffer
-	result = ovr_CreateMirrorTextureGL(this->m_HMD, GL_SRGB8_ALPHA8, windowSize.w, windowSize.h, reinterpret_cast<ovrTexture**>(&this->m_pMirrorTexture));
+	result = ovr_CreateMirrorTextureGL(this->m_HMD, &desc, &m_pMirrorTexture);
 	if (!OVR_SUCCESS(result)) {
 		VALIDATE(OVR_SUCCESS(result), "Failed to create mirror texture.");
 		return;
 	}
 
+	GLuint texId;
+	ovr_GetMirrorTextureBufferGL(m_HMD, m_pMirrorTexture, &texId);
+
 	// Configure the mirror read buffer
 	glGenFramebuffers(1, &this->m_uiMirrorFBO);
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, this->m_uiMirrorFBO);
-	glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, this->m_pMirrorTexture->OGL.TexId, 0);
+	glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texId, 0);
 	glFramebufferRenderbuffer(GL_READ_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0);
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 
