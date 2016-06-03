@@ -1,4 +1,4 @@
-# A boiler-plate for OculusVR and VTK in C++
+# A boilerplate for OculusVR and VTK in C++
 
 This is a Cmake-based OpenGL boilerplate for applications that use OculusVR and VTK. My intention was to allow the user the freedom to use modern OpenGL features and still be able to benefit from VTK features.
 
